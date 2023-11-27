@@ -137,6 +137,12 @@ for await (const event of watcher) {
     if (event.kind === "create") {
         for (const path of event.paths) {
             if (domainRegex.test(path)) {
+                // make sure file wasn't created by root before continuing
+                const fileInfo = await Deno.stat(path);
+                if (fileInfo.uid === 0) {
+                    continue;
+                }
+
                 await createDomain(path);
 
                 await Deno.remove(path);
