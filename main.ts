@@ -91,7 +91,6 @@ const generateDnssecKey = async (domain: string): Promise<string> => {
     }
 
     const keyFile = new TextDecoder().decode(stdout).trim();
-    console.log({ keyFile });
     return keyFile;
 }
 
