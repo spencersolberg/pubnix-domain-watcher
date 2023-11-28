@@ -1,5 +1,5 @@
-import { load } from "https://deno.land/std@0.207.0/dotenv/mod.ts";
-import { expandGlob } from "https://deno.land/std@0.208.0/fs/mod.ts";
+import { load } from "std/dotenv/mod.ts";
+import { expandGlob } from "std/fs/mod.ts";
 
 const env = await load();
 
