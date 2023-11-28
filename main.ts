@@ -1,4 +1,6 @@
 import { load } from "https://deno.land/std@0.207.0/dotenv/mod.ts";
+import { expandGlob } from "https://deno.land/std@0.208.0/fs/mod.ts";
+
 const env = await load();
 
 const watcher = Deno.watchFs("/home");
@@ -15,8 +17,10 @@ const createDomain = async (path: string) => {
         const keyFile = await generateDnssecKey(domain);
         await generateCorefile(domain, keyFile);
         const DsRecord = await generateDsRecord(domain, keyFile);
+        await generateCaddyFile(domain);
     
         await restartCoreDns();
+        await reloadCaddy();
 
         const message = `
 Domain ${domain} added successfully!
@@ -29,6 +33,9 @@ or, using your own nameservers configure the following records (Varo, Namebase):
 A: ${domain}. ${env.A}
 AAAA: ${domain}. ${env.AAAA}
 TLSA: _443._tcp.${domain}. ${TlsaRecord}
+
+You can remove the domain with the following command (run from your home directory):
+touch .remove-domain
         `;
 
         await Deno.writeTextFile(path, message);
@@ -129,6 +136,88 @@ const restartCoreDns = async (): Promise<void> => {
 
     if (code !== 0) {
         throw new Error(`Failed to restart CoreDNS: ${new TextDecoder().decode(stderr)}`);
+    }
+}
+
+const generateCaddyFile = async (domain: string): Promise<void> => {
+    console.log("Generating Caddyfile...")
+    const caddyfile = `
+${domain} {
+    root * /home/${domain}/public_html
+    file_server
+
+    tls /etc/ssl/certs/${domain}.crt /etc/ssl/private/${domain}.key
+}
+    `;
+
+    await Deno.writeTextFile(`/etc/caddy/caddyfiles/${domain}.Caddyfile`, caddyfile);
+}
+
+const reloadCaddy = async (): Promise<void> => {
+    console.log("Reloading Caddy...")
+    const cmd = new Deno.Command("systemctl", { args: ["reload", "caddy"] });
+    const { code, stdout, stderr } = await cmd.output();
+
+    if (code !== 0) {
+        throw new Error(`Failed to reload Caddy: ${new TextDecoder().decode(stderr)}`);
+    }
+}
+
+const removeDomain = async (path: string): Promise<void> => {
+    const domain = path.split("/")[2];
+    console.log("Removing domain", domain);
+
+    try {
+        await removeCertificates(domain);
+        await removeZoneFile(domain);
+        await removeDnssecKey(domain);
+        await removeCorefile(domain);
+        await removeCaddyfile(domain);
+
+        await restartCoreDns();
+        await reloadCaddy();
+
+        await Deno.remove(path);
+    } catch (e) {
+        console.error(e);
+        await Deno.writeTextFile(path, `Error: ${e.message}`);
+    }
+}
+
+const removeCertificates = async (domain: string): Promise<void> => {
+    console.log("Removing certificates...")
+    await Deno.remove(`/etc/ssl/certs/${domain}.crt`);
+    await Deno.remove(`/etc/ssl/private/${domain}.key`);
+}
+
+const removeZoneFile = async (domain: string): Promise<void> => {
+    console.log("Removing zone file...")
+    await Deno.remove(`/etc/coredns/zones/db.${domain}`);
+}
+
+const removeDnssecKey = async (domain: string): Promise<void> => {
+    // keys are stored as /etc/coredns/keys/K${domain}.+013+XXXXX where XXXXX is a randomly generated numerical 5 digit ID. There's a .key file and a .private, same name, different extension.
+    console.log("Removing DNSSEC key...")
+    const pattern = `/etc/coredns/keys/K${domain}.+013+*`;
+    await removeFiles(pattern);
+}
+
+const removeCorefile = async (domain: string): Promise<void> => {
+    console.log("Removing Corefile...")
+    await Deno.remove(`/etc/coredns/corefiles/${domain}.Corefile`);
+}
+
+const removeCaddyfile = async (domain: string): Promise<void> => {
+    console.log("Removing Caddyfile...")
+    await Deno.remove(`/etc/caddy/caddyfiles/${domain}.Caddyfile`);
+}
+
+const removeFiles = async (pattern: string): Promise<void> => {
+    for await (const file of expandGlob(pattern)) {
+        if (file.isFile) {
+            await Deno.remove(file.path);
+            console.log("Removed", file.path);
+        }
     }
 }
 
