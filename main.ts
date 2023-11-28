@@ -40,6 +40,7 @@ touch .remove-domain
         `;
 
         await Deno.writeTextFile(path, message);
+        console.log("Done!");
     } catch (e) {
         console.error(e);
 
@@ -179,6 +180,7 @@ const removeDomain = async (path: string): Promise<void> => {
         await reloadCaddy();
 
         await Deno.remove(path);
+        console.log("Done!");
     } catch (e) {
         console.error(e);
         await Deno.writeTextFile(path, `Error: ${e.message}`);
