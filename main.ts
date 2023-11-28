@@ -153,6 +153,14 @@ ${domain} {
     `;
 
     await Deno.writeTextFile(`/etc/caddy/caddyfiles/${domain}.Caddyfile`, caddyfile);
+
+    const cmd = new Deno.Command("caddy", { args: [ "validate", "-c", `/etc/caddy/caddyfiles/${domain}.Caddyfile`, "-a", "caddyfile" ]});
+    const { code, stdout, stderr } = await cmd.output();
+
+    if (code !==0) {
+        await Deno.remove(`/etc/caddy/caddyfiles/${domain}.Caddyfile`);
+        throw new Error(`Failed to validate Caddyfile: ${new TextDecoder().decode(stderr)}`);
+    }
 }
 
 const reloadCaddy = async (): Promise<void> => {
