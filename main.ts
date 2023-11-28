@@ -5,6 +5,7 @@ const env = await load();
 
 const watcher = Deno.watchFs("/home");
 const domainRegex = /^\/home\/[^/]*\/.domain$/
+const removeDomainRegex = /^\/home\/[^/]*\/.remove-domain$/
 
 const createDomain = async (path: string) => {
     const domain = path.split("/")[2];
@@ -186,13 +187,26 @@ const removeDomain = async (path: string): Promise<void> => {
 
 const removeCertificates = async (domain: string): Promise<void> => {
     console.log("Removing certificates...")
-    await Deno.remove(`/etc/ssl/certs/${domain}.crt`);
-    await Deno.remove(`/etc/ssl/private/${domain}.key`);
+    try {
+        await Deno.remove(`/etc/ssl/certs/${domain}.crt`);
+        await Deno.remove(`/etc/ssl/private/${domain}.key`);
+    } catch (e) {
+        if (!(e instanceof Deno.errors.NotFound)) {
+            throw e;
+        }
+    }
+
 }
 
 const removeZoneFile = async (domain: string): Promise<void> => {
     console.log("Removing zone file...")
-    await Deno.remove(`/etc/coredns/zones/db.${domain}`);
+    try {
+        await Deno.remove(`/etc/coredns/zones/db.${domain}`);
+    } catch (e) {
+        if (!(e instanceof Deno.errors.NotFound)) {
+            throw e;
+        }
+    }
 }
 
 const removeDnssecKey = async (domain: string): Promise<void> => {
@@ -204,12 +218,24 @@ const removeDnssecKey = async (domain: string): Promise<void> => {
 
 const removeCorefile = async (domain: string): Promise<void> => {
     console.log("Removing Corefile...")
-    await Deno.remove(`/etc/coredns/corefiles/${domain}.Corefile`);
+    try {
+        await Deno.remove(`/etc/coredns/corefiles/${domain}.Corefile`);
+    } catch (e) {
+        if (!(e instanceof Deno.errors.NotFound)) {
+            throw e;
+        }
+    }
 }
 
 const removeCaddyfile = async (domain: string): Promise<void> => {
     console.log("Removing Caddyfile...")
-    await Deno.remove(`/etc/caddy/caddyfiles/${domain}.Caddyfile`);
+    try {
+        await Deno.remove(`/etc/caddy/caddyfiles/${domain}.Caddyfile`);
+    } catch (e) {
+        if (!(e instanceof Deno.errors.NotFound)) {
+            throw e;
+        }
+    }
 }
 
 const removeFiles = async (pattern: string): Promise<void> => {
@@ -233,8 +259,14 @@ for await (const event of watcher) {
                 }
 
                 await createDomain(path);
+            } else if (removeDomainRegex.test(path)) {
+                // make sure file wasn't created by root before continuing
+                const fileInfo = await Deno.stat(path);
+                if (fileInfo.uid === 0) {
+                    continue;
+                }
 
-                await Deno.remove(path);
+                await removeDomain(path);
             }
         }
     }
