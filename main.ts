@@ -107,6 +107,7 @@ const generateCorefile = async (domain: string, keyFile: string): Promise<void> 
     console.log("Generating Corefile...")
     const corefile = `
 ${domain} {
+    bind enp1s0
     file zones/db.${domain}
     dnssec {
         key file keys/${keyFile}
