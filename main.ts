@@ -82,8 +82,8 @@ $TTL 3600
 	  3600       ; minimum (1 hour)
 	  )
   IN NS   ns1.pubnix.
-  IN A    64.176.193.64
-  IN AAAA 2001:19f0:1000:14d0:5400:04ff:fea8:cbd0
+  IN A    ${env.A}
+  IN AAAA ${env.AAAA}
 
 _443._tcp IN TLSA ${TlsaRecord}
     `;
